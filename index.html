@@ -1,0 +1,280 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>Shoily vs Thoughts</title>
+
+<style>
+body {
+  margin: 0;
+  height: 100vh;
+  font-family: "Segoe UI", sans-serif;
+  color: white;
+  text-align: center;
+  background:
+    linear-gradient(rgba(0,0,0,.3), rgba(0,0,0,.6)),
+    url("background.png") center/cover no-repeat fixed;
+}
+
+h1 {
+  margin: 10px 0;
+}
+
+#menu {
+  margin-top: 80px;
+}
+
+select, button {
+  padding: 10px 20px;
+  border-radius: 20px;
+  border: none;
+  font-size: 16px;
+  margin: 10px;
+}
+
+button {
+  background: #ffb6c1;
+  cursor: pointer;
+}
+
+#ui {
+  width: 620px;
+  margin: auto;
+  padding: 10px;
+  background: rgba(255,255,255,0.12);
+  backdrop-filter: blur(8px);
+  border-radius: 15px;
+  box-shadow: 0 0 25px rgba(255,182,193,0.4);
+  display: none;
+}
+
+#stats {
+  display: flex;
+  justify-content: space-between;
+  font-size: 14px;
+}
+
+#health {
+  height: 14px;
+  background: #400;
+  border-radius: 10px;
+  overflow: hidden;
+  margin-top: 6px;
+}
+
+#healthInner {
+  height: 100%;
+  background: linear-gradient(90deg, #00ff99, #00cc66);
+  width: 100%;
+}
+
+canvas {
+  display: none;
+  margin: 15px auto;
+  border-radius: 15px;
+  border: 3px solid #ffb6c1;
+  background: rgba(15,23,42,0.7);
+}
+
+#end {
+  display: none;
+  margin-top: 80px;
+}
+
+#end h2 {
+  font-size: 42px;
+  color: #ffb6c1;
+}
+</style>
+</head>
+
+<body>
+
+<div id="menu">
+  <h1>🌸 Shoily vs Thoughts 🌸</h1>
+  <p>Choose Difficulty</p>
+  <select id="difficulty">
+    <option value="1">Easy</option>
+    <option value="1.5" selected>Normal</option>
+    <option value="2">Hard</option>
+  </select><br>
+  <button onclick="startGame()">Start Game</button>
+</div>
+
+<div id="ui">
+  <div id="stats">
+    <div>Score: <span id="score">0</span></div>
+    <div>Combo: x<span id="combo">1</span></div>
+    <div>Time: <span id="time">0</span>s</div>
+  </div>
+  <div id="health"><div id="healthInner"></div></div>
+</div>
+
+<canvas id="game" width="600" height="500"></canvas>
+
+<div id="end">
+  <h2>🎉 Happy Birthday Shoily 🎉</h2>
+  <p>Final Score: <span id="finalScore"></span></p>
+</div>
+
+<script>
+const canvas = document.getElementById("game");
+const ctx = canvas.getContext("2d");
+
+const shoilyImg = new Image();
+shoilyImg.src = "shoily.png";
+
+const shootSound = new Audio("shoot.wav");
+const hitSound = new Audio("hit.wav");
+const winSound = new Audio("win.wav");
+
+let bullets = [], enemyBullets = [], enemies = [];
+let keys = {};
+let running = false;
+let bossSpawned = false;
+
+let score = 0, combo = 1, comboTimer = 0;
+let time = 0, health = 100;
+let difficulty = 1;
+
+const scoreEl = document.getElementById("score");
+const comboEl = document.getElementById("combo");
+const timeEl = document.getElementById("time");
+const healthBar = document.getElementById("healthInner");
+
+const shoily = { x: 270, y: 390, w: 60, h: 90, speed: 5 };
+
+document.addEventListener("keydown", e => keys[e.code] = true);
+document.addEventListener("keyup", e => keys[e.code] = false);
+
+function startGame() {
+  difficulty = parseFloat(document.getElementById("difficulty").value);
+  document.getElementById("menu").style.display = "none";
+  document.getElementById("ui").style.display = "block";
+  canvas.style.display = "block";
+  spawnEnemies();
+  running = true;
+  loop();
+}
+
+function spawnEnemies() {
+  enemies = [
+    { x: 80, y: 60, w: 100, h: 40, hp: 3, name: "Overthinking", dir: 1 },
+    { x: 240, y: 60, w: 100, h: 40, hp: 3, name: "Anxiety", dir: 1 },
+    { x: 400, y: 60, w: 120, h: 40, hp: 3, name: "Pathetic Foiyoz", dir: 1 }
+  ];
+}
+
+function spawnBoss() {
+  enemies.push({
+    x: 180, y: 40, w: 240, h: 60,
+    hp: 12 * difficulty,
+    name: "Foiyoz – Final Form",
+    boss: true,
+    dir: 1
+  });
+  bossSpawned = true;
+}
+
+function shoot() {
+  bullets.push({ x: shoily.x + 30, y: shoily.y, speed: 8 });
+  shootSound.currentTime = 0;
+  shootSound.play();
+}
+
+function update() {
+  if (!running) return;
+
+  time += 1/60;
+  timeEl.textContent = Math.floor(time);
+
+  if (keys["ArrowLeft"]) shoily.x -= shoily.speed;
+  if (keys["ArrowRight"]) shoily.x += shoily.speed;
+  if (keys["Space"]) { shoot(); keys["Space"] = false; }
+
+  shoily.x = Math.max(0, Math.min(540, shoily.x));
+
+  bullets.forEach(b => b.y -= b.speed);
+  enemyBullets.forEach(b => b.y += b.speed * difficulty);
+
+  bullets = bullets.filter(b => b.y > 0);
+  enemyBullets = enemyBullets.filter(b => b.y < 500);
+
+  enemies.forEach(e => {
+    e.x += e.dir * difficulty;
+    if (e.x <= 0 || e.x + e.w >= 600) e.dir *= -1;
+    if (Math.random() < 0.004 * difficulty) {
+      enemyBullets.push({ x: e.x + e.w/2, y: e.y + e.h, speed: 3 });
+    }
+  });
+
+  bullets.forEach((b, bi) => {
+    enemies.forEach((e, ei) => {
+      if (b.x > e.x && b.x < e.x + e.w && b.y > e.y && b.y < e.y + e.h) {
+        e.hp--;
+        hitSound.play();
+        score += 100 * combo;
+        combo = Math.min(combo + 1, 5);
+        comboTimer = 60;
+        bullets.splice(bi, 1);
+        if (e.hp <= 0) enemies.splice(ei, 1);
+      }
+    });
+  });
+
+  if (comboTimer-- <= 0) combo = 1;
+
+  enemyBullets.forEach((b, bi) => {
+    if (b.x > shoily.x && b.x < shoily.x + shoily.w &&
+        b.y > shoily.y && b.y < shoily.y + shoily.h) {
+      health -= 10;
+      combo = 1;
+      enemyBullets.splice(bi, 1);
+    }
+  });
+
+  healthBar.style.width = health + "%";
+  scoreEl.textContent = score;
+  comboEl.textContent = combo;
+
+  if (enemies.length === 0 && !bossSpawned) spawnBoss();
+
+  if (enemies.length === 0 && bossSpawned) {
+    running = false;
+    canvas.style.display = "none";
+    document.getElementById("ui").style.display = "none";
+    document.getElementById("end").style.display = "block";
+    document.getElementById("finalScore").textContent = score;
+    winSound.play();
+  }
+}
+
+function draw() {
+  ctx.clearRect(0,0,600,500);
+  ctx.drawImage(shoilyImg, shoily.x, shoily.y, shoily.w, shoily.h);
+
+  ctx.fillStyle = "#ff4d6d";
+  bullets.forEach(b => ctx.fillRect(b.x, b.y, 5, 10));
+
+  ctx.fillStyle = "#ff0000";
+  enemyBullets.forEach(b => ctx.fillRect(b.x, b.y, 5, 10));
+
+  enemies.forEach(e => {
+    ctx.fillStyle = e.boss ? "#ff006e" : "#ffd166";
+    ctx.fillRect(e.x, e.y, e.w, e.h);
+    ctx.fillStyle = "#000";
+    ctx.fillText(e.name, e.x + 10, e.y + 25);
+  });
+}
+
+function loop() {
+  update();
+  draw();
+  if (running) requestAnimationFrame(loop);
+}
+
+shoilyImg.onload = () => {};
+</script>
+
+</body>
+</html>
